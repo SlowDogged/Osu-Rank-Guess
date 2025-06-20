@@ -6,20 +6,22 @@
   <title>Random o!rdr Replay</title>
   <style>
     body { font-family: sans-serif; text-align: center; padding: 2rem; }
-    video { max-width: 100%; height: auto; border: 1px solid #ccc; }
+    video { max-width: 100%; height: auto; border: 1px solid #ccc; margin-top: 1rem;}
     #reload { margin-top: 1rem; padding: 0.5rem 1rem; }
+    #link a { color: #06c; text-decoration: none; }
+    #link a:hover { text-decoration: underline; }
   </style>
 </head>
 <body>
   <h1>🎲 Random o!rdr Replay</h1>
-  <div id="info"></div>
+  <div id="info">Loading… 🔄</div>
   <video id="replay" controls></video>
-  <br/>
+  <div id="link"></div>
   <button id="reload">Show Another!</button>
 
   <script>
-    // 🍪 CORS proxy for JSON requests
     const PROXY = 'https://api.allorigins.win/raw?url=';
+    // Fetch JSON through CORS proxy
     async function fetchJson(url) {
       const res = await fetch(PROXY + encodeURIComponent(url));
       if (!res.ok) throw new Error('Proxy error ' + res.status);
@@ -27,14 +29,29 @@
       return JSON.parse(txt);
     }
 
+    // Test if a video link still exists
+    async function videoExists(url) {
+      try {
+        const res = await fetch(PROXY + encodeURIComponent(url));
+        if (!res.ok) return false;
+        const html = await res.text();
+        // Look for the “no longer available” message
+        return !html.includes('This video is no longer available.');
+      } catch {
+        return false;
+      }
+    }
+
     async function loadRandom() {
       const infoEl = document.getElementById('info');
       const vidEl  = document.getElementById('replay');
+      const linkEl = document.getElementById('link');
       infoEl.textContent = 'Loading… 🔄';
       vidEl.src = '';
+      linkEl.innerHTML = '';
 
       try {
-        // 1️⃣ Get total renders
+        // 1️⃣ How many renders total?
         const meta = await fetchJson(
           'https://apis.issou.best/ordr/renders?pageSize=1'
         );
@@ -44,43 +61,58 @@
 
         let chosen = null;
         // 2️⃣ Try up to 5 random pages
-        for (let i = 0; i < 5; i++) {
+        for (let p = 0; p < 5 && !chosen; p++) {
           const page = Math.floor(Math.random() * totalPages) + 1;
           const data = await fetchJson(
             `https://apis.issou.best/ordr/renders`
             + `?pageSize=${pageSize}&page=${page}&nobots`
           );
 
-          // 3️⃣ Filter for completed renders
+          // 3️⃣ Filter only Done & errorCode=0
           const good = data.renders.filter(r =>
             r.errorCode === 0 &&
             r.progress  === 'Done.' &&
             r.videoUrl
           );
-          if (good.length) {
-            chosen = good[Math.floor(Math.random() * good.length)];
-            break;
+
+          // Shuffle & test a few candidates
+          for (const r of shuffle(good).slice(0, 10)) {
+            if (await videoExists(r.videoUrl)) {
+              chosen = r;
+              break;
+            }
           }
         }
 
-        if (!chosen) {
-          throw new Error('No done renders found in 5 tries');
-        }
+        if (!chosen) throw new Error('No valid video found');
 
-        // 4️⃣ Display it!
+        // 🎉 Display!
         infoEl.textContent = `${chosen.username} – ${chosen.title}`;
+        console.log('Playing:', chosen.videoUrl);
+        linkEl.innerHTML =
+          `<a href="${chosen.videoUrl}" target="_blank">
+             🔗 Open raw video link
+           </a>`;
         vidEl.src = chosen.videoUrl;
 
       } catch (err) {
         console.error(err);
-        infoEl.textContent = 'Oops, retrying… 😕';
+        infoEl.textContent = 'Oops, retrying in 3s… 😕';
         setTimeout(loadRandom, 3000);
       }
     }
 
-    document.getElementById('reload')
-            .addEventListener('click', loadRandom);
+    // Simple Fisher–Yates shuffle
+    function shuffle(array) {
+      const a = array.slice();
+      for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+      }
+      return a;
+    }
 
+    document.getElementById('reload').onclick = loadRandom;
     loadRandom();  // first run
   </script>
 </body>
