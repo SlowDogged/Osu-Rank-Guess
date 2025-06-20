@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
   <title>Random o!rdr Replay</title>
   <style>
     body { font-family: sans-serif; text-align: center; padding: 2rem; }
@@ -20,12 +20,13 @@
   <button id="reload">Show Another!</button>
 
   <script>
-    const PROXY     = 'https://api.allorigins.win/raw?url=';
+    // ←– Replace with your Worker’s URL (include the trailing “/proxy?url=”)
+    const PROXY = 'https://ordr-proxy.YOUR-ACCOUNT.workers.dev/proxy?url=';
+
     const PAGE_SIZE = 50;
     const MAX_PAGES = 10;
     const MAX_TRIES = 10;
 
-    // Helper: fetch JSON via CORS proxy
     async function fetchJson(url) {
       const res = await fetch(PROXY + encodeURIComponent(url));
       if (!res.ok) throw new Error('Proxy error ' + res.status);
@@ -33,13 +34,12 @@
       return JSON.parse(txt);
     }
 
-    // Helper: get direct MP4 URL via dynlink
     async function getDirectLink(renderID) {
-      const dynUrl = `https://apis.issou.best/dynlink/ordr/gen?id=${renderID}`;
+      const dyn = `https://apis.issou.best/dynlink/ordr/gen?id=${renderID}`;
       try {
-        const res  = await fetch(PROXY + encodeURIComponent(dynUrl));
+        const res = await fetch(PROXY + encodeURIComponent(dyn));
         if (!res.ok) return null;
-        const obj  = JSON.parse(await res.text());
+        const obj = JSON.parse(await res.text());
         return obj.url || null;
       } catch {
         return null;
@@ -55,25 +55,19 @@
       linkEl.innerHTML = '';
 
       try {
-        let chosenMeta = null;
-        let chosenUrl  = null;
+        let chosenMeta = null, chosenUrl = null;
 
-        // Try up to MAX_TRIES times
         for (let i = 0; i < MAX_TRIES; i++) {
-          // Pick a random page between 1 and MAX_PAGES
           const page = Math.floor(Math.random() * MAX_PAGES) + 1;
           const data = await fetchJson(
-            `https://apis.issou.best/ordr/renders`
-            + `?pageSize=${PAGE_SIZE}&page=${page}&nobots`
+            `https://apis.issou.best/ordr/renders?pageSize=${PAGE_SIZE}` +
+            `&page=${page}&nobots`
           );
-
-          // Filter only fully done (errorCode=0, progress="Done.")
           const good = data.renders.filter(r =>
             r.errorCode === 0 && r.progress === 'Done.'
           );
           if (!good.length) continue;
 
-          // Pick one at random
           const pick = good[Math.floor(Math.random() * good.length)];
           const url  = await getDirectLink(pick.renderID);
           if (url) {
@@ -84,26 +78,24 @@
         }
 
         if (!chosenMeta) {
-          throw new Error('No playable replay found in first 10 pages');
+          throw new Error('No playable replay found in first pages.');
         }
 
-        // Display it
         infoEl.textContent = `${chosenMeta.username} – ${chosenMeta.title}`;
-        linkEl.innerHTML =
-          `<a href="${chosenUrl}" target="_blank">
-             🔗 Open direct video link
-           </a>`;
+        linkEl.innerHTML = `<a href="${chosenUrl}" target="_blank">
+          🔗 Direct video link
+        </a>`;
         vidEl.src = chosenUrl;
 
       } catch (err) {
         console.error(err);
-        infoEl.textContent = 'Oops, retrying in 3s… 😕';
+        infoEl.textContent = 'Oops… retrying in 3s 😕';
         setTimeout(loadRandom, 3000);
       }
     }
 
     document.getElementById('reload').onclick = loadRandom;
-    loadRandom();  // initial load
+    loadRandom();
   </script>
 </body>
 </html>
