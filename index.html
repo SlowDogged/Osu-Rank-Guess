@@ -20,9 +20,12 @@
   <button id="reload">Show Another!</button>
 
   <script>
-    const PROXY = 'https://api.allorigins.win/raw?url=';
+    const PROXY     = 'https://api.allorigins.win/raw?url=';
+    const PAGE_SIZE = 50;
+    const MAX_PAGES = 10;
+    const MAX_TRIES = 10;
 
-    // Helper to fetch JSON via CORS proxy
+    // Helper: fetch JSON via CORS proxy
     async function fetchJson(url) {
       const res = await fetch(PROXY + encodeURIComponent(url));
       if (!res.ok) throw new Error('Proxy error ' + res.status);
@@ -30,27 +33,17 @@
       return JSON.parse(txt);
     }
 
-    // Ask dynlink for the direct MP4 URL (returns null if missing)
+    // Helper: get direct MP4 URL via dynlink
     async function getDirectLink(renderID) {
       const dynUrl = `https://apis.issou.best/dynlink/ordr/gen?id=${renderID}`;
       try {
-        const res = await fetch(PROXY + encodeURIComponent(dynUrl));
+        const res  = await fetch(PROXY + encodeURIComponent(dynUrl));
         if (!res.ok) return null;
-        const data = JSON.parse(await res.text());
-        return data.url || null;
-      } catch (e) {
-        console.warn('dynlink failed for', renderID, e);
+        const obj  = JSON.parse(await res.text());
+        return obj.url || null;
+      } catch {
         return null;
       }
-    }
-
-    // Simple in-place Fisher–Yates shuffle
-    function shuffle(array) {
-      for (let i = array.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [array[i], array[j]] = [array[j], array[i]];
-      }
-      return array;
     }
 
     async function loadRandom() {
@@ -62,63 +55,40 @@
       linkEl.innerHTML = '';
 
       try {
-        // 1️⃣ Get how many renders exist
-        const meta = await fetchJson(
-          'https://apis.issou.best/ordr/renders?pageSize=1'
-        );
-        const maxRenders = meta.maxRenders;
-        const pageSize   = 50;
-        const totalPages = Math.ceil(maxRenders / pageSize);
-
-        // We'll first try only the last 5 pages:
-        const recentStart = Math.max(1, totalPages - 4);
-
         let chosenMeta = null;
         let chosenUrl  = null;
 
-        // Helper to search a page range
-        async function tryRange(startPage, endPage, pageTries, candTries) {
-          for (let i = 0; i < pageTries && !chosenMeta; i++) {
-            const p = Math.floor(Math.random() * (endPage - startPage + 1)) + startPage;
-            const data = await fetchJson(
-              `https://apis.issou.best/ordr/renders`
-              + `?pageSize=${pageSize}&page=${p}&nobots`
-            );
+        // Try up to MAX_TRIES times
+        for (let i = 0; i < MAX_TRIES; i++) {
+          // Pick a random page between 1 and MAX_PAGES
+          const page = Math.floor(Math.random() * MAX_PAGES) + 1;
+          const data = await fetchJson(
+            `https://apis.issou.best/ordr/renders`
+            + `?pageSize=${PAGE_SIZE}&page=${page}&nobots`
+          );
 
-            // keep only fully-done renders
-            const good = data.renders.filter(r =>
-              r.errorCode === 0 && r.progress === 'Done.'
-            );
-            shuffle(good);
+          // Filter only fully done (errorCode=0, progress="Done.")
+          const good = data.renders.filter(r =>
+            r.errorCode === 0 && r.progress === 'Done.'
+          );
+          if (!good.length) continue;
 
-            // test up to candTries of them
-            for (let j = 0; j < Math.min(candTries, good.length); j++) {
-              const r = good[j];
-              const url = await getDirectLink(r.renderID);
-              if (url) {
-                chosenMeta = r;
-                chosenUrl  = url;
-                return;
-              }
-            }
+          // Pick one at random
+          const pick = good[Math.floor(Math.random() * good.length)];
+          const url  = await getDirectLink(pick.renderID);
+          if (url) {
+            chosenMeta = pick;
+            chosenUrl  = url;
+            break;
           }
         }
 
-        // Phase 1: recent pages (5 tries, 5 candidates each)
-        await tryRange(recentStart, totalPages, 5, 5);
-
-        // Phase 2: fallback to ALL pages if still nothing (3 tries, 3 candidates)
         if (!chosenMeta) {
-          await tryRange(1, totalPages, 3, 3);
+          throw new Error('No playable replay found in first 10 pages');
         }
 
-        if (!chosenMeta) {
-          throw new Error('Couldn’t find any playable replay.');
-        }
-
-        // 🎉 Found one—display it
+        // Display it
         infoEl.textContent = `${chosenMeta.username} – ${chosenMeta.title}`;
-        console.log('Loading video from:', chosenUrl);
         linkEl.innerHTML =
           `<a href="${chosenUrl}" target="_blank">
              🔗 Open direct video link
@@ -127,7 +97,7 @@
 
       } catch (err) {
         console.error(err);
-        infoEl.textContent = 'Error loading. Retrying… 🤔';
+        infoEl.textContent = 'Oops, retrying in 3s… 😕';
         setTimeout(loadRandom, 3000);
       }
     }
