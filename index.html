@@ -20,39 +20,44 @@
   <script>
   async function loadRandom() {
     document.getElementById('info').textContent = 'Loading…';
-    // 1️⃣ Get the highest render ID so far
+
+    // 1️⃣ Fetch maxRenders via CORS proxy
     const r1 = await fetch(
-        'https://api.allorigins.win/raw?url='
-        + encodeURIComponent('https://apis.issou.best/ordr/renders?pageSize=1')
-      )
+      'https://api.allorigins.win/raw?url=' +
+      encodeURIComponent('https://apis.issou.best/ordr/renders?pageSize=1')
+    );
     const { maxRenders } = await r1.json();
 
-    // 2️⃣ Pick a random number between 1 and maxRenders
+    // 2️⃣ Pick a random ID
     const id = Math.floor(Math.random() * maxRenders) + 1;
 
-    // 3️⃣ Fetch that specific render’s data
-    const r2 =  fetch(
-      `https://apis.issou.best/ordr/renders?renderID=${id}`
+    // 3️⃣ Fetch that render’s data via proxy
+    const r2 = await fetch(
+      'https://api.allorigins.win/raw?url=' +
+      encodeURIComponent(`https://apis.issou.best/ordr/renders?renderID=${id}`)
     );
-    const { renders } =  r2.json();
-    if (!renders.length) return loadRandom(); // if empty, try again
+    const { renders } = await r2.json();
+    if (!renders.length) return loadRandom(); // try again if none
 
     const render = renders[0];
     document.getElementById('info').textContent =
       `${render.username} – ${render.title}`;
 
-    // 4️⃣ Turn it into a direct MP4 link
-    const linkResp =  fetch(
-      `https://apis.issou.best/dynlink/ordr/gen?id=${render.renderID}`
+    // 4️⃣ Get direct MP4 link via proxy
+    const linkResp = await fetch(
+      'https://api.allorigins.win/raw?url=' +
+      encodeURIComponent(
+        `https://apis.issou.best/dynlink/ordr/gen?id=${render.renderID}`
+      )
     );
-    const { url } =  linkResp.json();
+    const { url } = await linkResp.json();
 
-    // 5️⃣ Show it in the video player
+    // 5️⃣ Show it
     document.getElementById('replay').src = url;
   }
 
   document.getElementById('reload').onclick = loadRandom;
-  loadRandom(); // run once on page load
+  loadRandom(); // load one when page opens
   </script>
 </body>
 </html>
