@@ -18,46 +18,57 @@
   <button id="reload">Show Another!</button>
 
   <script>
-  async function loadRandom() {
-    document.getElementById('info').textContent = 'Loading…';
+    // Simple proxy + JSON helper
+    const PROXY = 'https://api.allorigins.win/raw?url=';
+    async function fetchJson(url) {
+      const res = await fetch(PROXY + encodeURIComponent(url));
+      if (!res.ok) throw new Error(`Proxy error ${res.status}`);
+      return await res.json();
+    }
 
-    // 1️⃣ Fetch maxRenders via CORS proxy
-    const r1 = await fetch(
-      'https://api.allorigins.win/raw?url=' +
-      encodeURIComponent('https://apis.issou.best/ordr/renders?pageSize=1')
-    );
-    const { maxRenders } = await r1.json();
+    async function loadRandom() {
+      try {
+        document.getElementById('info').textContent = 'Loading…';
 
-    // 2️⃣ Pick a random ID
-    const id = Math.floor(Math.random() * maxRenders) + 1;
+        // 1️⃣ Get maxRenders
+        const { maxRenders } = await fetchJson(
+          'https://apis.issou.best/ordr/renders?pageSize=1'
+        );
 
-    // 3️⃣ Fetch that render’s data via proxy
-    const r2 = await fetch(
-      'https://api.allorigins.win/raw?url=' +
-      encodeURIComponent(`https://apis.issou.best/ordr/renders?renderID=${id}`)
-    );
-    const { renders } = await r2.json();
-    if (!renders.length) return loadRandom(); // try again if none
+        // 2️⃣ Pick random ID
+        const id = Math.floor(Math.random() * maxRenders) + 1;
 
-    const render = renders[0];
-    document.getElementById('info').textContent =
-      `${render.username} – ${render.title}`;
+        // 3️⃣ Fetch render data
+        const { renders } = await fetchJson(
+          `https://apis.issou.best/ordr/renders?renderID=${id}`
+        );
+        if (!renders.length) return loadRandom(); // try again if missing
 
-    // 4️⃣ Get direct MP4 link via proxy
-    const linkResp = await fetch(
-      'https://api.allorigins.win/raw?url=' +
-      encodeURIComponent(
-        `https://apis.issou.best/dynlink/ordr/gen?id=${render.renderID}`
-      )
-    );
-    const { url } = await linkResp.json();
+        const render = renders[0];
+        document.getElementById('info').textContent =
+          `${render.username} – ${render.title}`;
 
-    // 5️⃣ Show it
-    document.getElementById('replay').src = url;
-  }
+        // 4️⃣ Get direct MP4 link
+        const { url } = await fetchJson(
+          `https://apis.issou.best/dynlink/ordr/gen?id=${render.renderID}`
+        );
 
-  document.getElementById('reload').onclick = loadRandom;
-  loadRandom(); // load one when page opens
+        // 5️⃣ Show it!
+        document.getElementById('replay').src = url;
+
+      } catch (err) {
+        console.error(err);
+        document.getElementById('info').textContent =
+          'Error loading replay – retrying…';
+        setTimeout(loadRandom, 2000);
+      }
+    }
+
+    document.getElementById('reload')
+            .addEventListener('click', loadRandom);
+
+    loadRandom(); // kick things off on page load
   </script>
 </body>
 </html>
+
