@@ -166,7 +166,7 @@
       }
 
       // auto-fail after last hint
-      if(guessAttempts >= allHints.length){
+      if(guessAttempts > allHints.length){
         resEl.textContent = `💥 Out of hints! The rank was ${actualRank.toLocaleString()}`;
         document.getElementById('reload').style.display = 'inline-block';
         document.getElementById('guess-container').style.display = 'none';
