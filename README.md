@@ -1,5 +1,5 @@
 # Osu-Rank-Guess
-A fun an easy way to rank guess Osu Replays using o!rdr.
+A fun and easy way to rank guess Osu Replays using o!rdr.
 
 
 (Still in development)
