@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Random o!rdr Replay</title>
+  <style>
+    body { font-family: sans-serif; text-align: center; padding: 2rem; }
+    video { max-width: 100%; height: auto; border: 1px solid #ccc; }
+    #reload { margin-top: 1rem; padding: 0.5rem 1rem; }
+  </style>
+</head>
+<body>
+  <h1>🎲 Random o!rdr Replay</h1>
+  <div id="info"></div>
+  <video id="replay" controls></video>
+  <br/>
+  <button id="reload">Show Another!</button>
+
+  <script>
+  async function loadRandom() {
+    document.getElementById('info').textContent = 'Loading…';
+    // 1️⃣ Get the highest render ID so far
+    const r1 = await fetch('https://apis.issou.best/ordr/renders?pageSize=1');
+    const { maxRenders } = await r1.json();
+
+    // 2️⃣ Pick a random number between 1 and maxRenders
+    const id = Math.floor(Math.random() * maxRenders) + 1;
+
+    // 3️⃣ Fetch that specific render’s data
+    const r2 = await fetch(
+      `https://apis.issou.best/ordr/renders?renderID=${id}`
+    );
+    const { renders } = await r2.json();
+    if (!renders.length) return loadRandom(); // if empty, try again
+
+    const render = renders[0];
+    document.getElementById('info').textContent =
+      `${render.username} – ${render.title}`;
+
+    // 4️⃣ Turn it into a direct MP4 link
+    const linkResp = await fetch(
+      `https://apis.issou.best/dynlink/ordr/gen?id=${render.renderID}`
+    );
+    const { url } = await linkResp.json();
+
+    // 5️⃣ Show it in the video player
+    document.getElementById('replay').src = url;
+  }
+
+  document.getElementById('reload').onclick = loadRandom;
+  loadRandom(); // run once on page load
+  </script>
+</body>
+</html>
