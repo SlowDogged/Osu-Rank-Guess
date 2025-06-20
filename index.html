@@ -3,30 +3,36 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-  <title>Random o!rdr Replay</title>
+  <title>Random o!rdr Replay + osu! Rank</title>
   <style>
     body { font-family: sans-serif; text-align: center; padding: 2rem; }
     video { max-width: 100%; height: auto; border: 1px solid #ccc; margin-top: 1rem; }
     #reload { margin-top: 1rem; padding: 0.5rem 1rem; }
     #link a { color: #06c; text-decoration: none; }
     #link a:hover { text-decoration: underline; }
+    #user-rank { margin-top: 0.5rem; font-style: italic; }
   </style>
 </head>
 <body>
-  <h1>🎲 Random o!rdr Replay</h1>
+  <h1>🎲 Random o!rdr Replay + osu! Rank</h1>
   <div id="info">Loading… 🔄</div>
+  <div id="user-rank"></div>
   <video id="replay" controls></video>
   <div id="link"></div>
   <button id="reload">Show Another!</button>
 
   <script>
-    // ←– Replace with your Worker’s URL (include the trailing “/proxy?url=”)
-    const PROXY = 'https://ordr-proxy.YOUR-ACCOUNT.workers.dev/proxy?url=';
+    // ── CONFIG ─────────────────────────────────────────────────────────
+    // Paste your osu! API key here ⬇️
+    const OSU_API_KEY = 'YOUR_OSU_API_KEY_HERE';
 
+    // Your CORS‐proxy (Cloudflare Worker) from earlier:
+    const PROXY     = 'https://ordr-proxy.YOUR-ACCOUNT.workers.dev/proxy?url=';
     const PAGE_SIZE = 50;
     const MAX_PAGES = 10;
     const MAX_TRIES = 10;
 
+    // ── UTILITIES ───────────────────────────────────────────────────────
     async function fetchJson(url) {
       const res = await fetch(PROXY + encodeURIComponent(url));
       if (!res.ok) throw new Error('Proxy error ' + res.status);
@@ -46,11 +52,14 @@
       }
     }
 
+    // ── MAIN ────────────────────────────────────────────────────────────
     async function loadRandom() {
       const infoEl = document.getElementById('info');
+      const rankEl = document.getElementById('user-rank');
       const vidEl  = document.getElementById('replay');
       const linkEl = document.getElementById('link');
       infoEl.textContent = 'Loading… 🔄';
+      rankEl.textContent = '';
       vidEl.src = '';
       linkEl.innerHTML = '';
 
@@ -60,15 +69,15 @@
         for (let i = 0; i < MAX_TRIES; i++) {
           const page = Math.floor(Math.random() * MAX_PAGES) + 1;
           const data = await fetchJson(
-            `https://apis.issou.best/ordr/renders?pageSize=${PAGE_SIZE}` +
-            `&page=${page}&nobots`
+            `https://apis.issou.best/ordr/renders`
+            + `?pageSize=${PAGE_SIZE}&page=${page}&nobots`
           );
-          const good = data.renders.filter(r =>
+          const done = data.renders.filter(r =>
             r.errorCode === 0 && r.progress === 'Done.'
           );
-          if (!good.length) continue;
+          if (!done.length) continue;
 
-          const pick = good[Math.floor(Math.random() * good.length)];
+          const pick = done[Math.floor(Math.random() * done.length)];
           const url  = await getDirectLink(pick.renderID);
           if (url) {
             chosenMeta = pick;
@@ -81,15 +90,32 @@
           throw new Error('No playable replay found in first pages.');
         }
 
+        // — show replay info —
         infoEl.textContent = `${chosenMeta.username} – ${chosenMeta.title}`;
-        linkEl.innerHTML = `<a href="${chosenUrl}" target="_blank">
-          🔗 Direct video link
-        </a>`;
+
+        // — fetch osu! user rank —
+        rankEl.textContent = 'Loading rank… ⏳';
+        const osuUrl = `https://osu.ppy.sh/api/get_user`
+                     + `?k=${OSU_API_KEY}`
+                     + `&u=${encodeURIComponent(chosenMeta.username)}`;
+        const osuData = await fetchJson(osuUrl);
+        if (osuData.length) {
+          const u = osuData[0];
+          rankEl.textContent =
+            `Global Rank: #${u.pp_rank} | Country Rank: #${u.pp_country_rank}`;
+        } else {
+          rankEl.textContent = 'Rank info not found';
+        }
+
+        // — embed video & link —
+        linkEl.innerHTML =
+          `<a href="${chosenUrl}" target="_blank">🔗 Open direct video link</a>`;
         vidEl.src = chosenUrl;
 
       } catch (err) {
         console.error(err);
         infoEl.textContent = 'Oops… retrying in 3s 😕';
+        rankEl.textContent = '';
         setTimeout(loadRandom, 3000);
       }
     }
