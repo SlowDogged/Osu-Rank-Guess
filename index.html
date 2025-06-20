@@ -3,34 +3,44 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-  <title>Random o!rdr Replay + osu! Rank</title>
+  <title>Guess the Rank!</title>
   <style>
     body { font-family: sans-serif; text-align: center; padding: 2rem; }
-    video { max-width: 100%; height: auto; border: 1px solid #ccc; margin-top: 1rem; }
+    video { max-width: 100%; height: auto; border: 1px solid #ccc; margin: 1rem 0; }
+    input, button { font-size: 1rem; }
+    #guess-container { margin-top: 1rem; }
+    #guess-result { margin-top: 0.5rem; font-weight: bold; }
     #reload { margin-top: 1rem; padding: 0.5rem 1rem; }
     #link a { color: #06c; text-decoration: none; }
     #link a:hover { text-decoration: underline; }
-    #user-rank { margin-top: 0.5rem; font-style: italic; }
   </style>
 </head>
 <body>
-  <h1>🎲 Random o!rdr Replay + osu! Rank</h1>
+  <h1>🎲 Random o!rdr Replay – Guess the Rank!</h1>
   <div id="info">Loading… 🔄</div>
-  <div id="user-rank"></div>
   <video id="replay" controls></video>
   <div id="link"></div>
-  <button id="reload">Show Another!</button>
+
+  <!-- Guess UI -->
+  <div id="guess-container" style="display:none;">
+    <input type="number" id="guess-input" placeholder="Enter global rank" />
+    <button id="guess-btn">Submit Guess</button>
+    <div id="guess-result"></div>
+  </div>
+
+  <!-- Only shows after correct guess -->
+  <button id="reload" style="display:none;">Next Replay</button>
 
   <script>
     // ── CONFIG ─────────────────────────────────────────────────────────
-    // Paste your osu! API key here ⬇️
-    const OSU_API_KEY = '1afe2d67d4fea6bdf58c5aeff3fd83e8c28be9d1';
+    const OSU_API_KEY = '1afe2d67d4fea6bdf58c5aeff3fd83e8c28be9d1';  
+    const PROXY       = 'https://ordr-proxy.vnblemonade.workers.dev/?url=';  
+    const PAGE_SIZE   = 50;
+    const MAX_PAGES   = 10;
+    const MAX_TRIES   = 10;
 
-    // Your CORS‐proxy (Cloudflare Worker) from earlier:
-    const PROXY     = 'https://ordr-proxy.vnblemonade.workers.dev/?url=';
-    const PAGE_SIZE = 50;
-    const MAX_PAGES = 10;
-    const MAX_TRIES = 10;
+    // will hold the actual rank once we fetch it
+    let currentActualRank = null;
 
     // ── UTILITIES ───────────────────────────────────────────────────────
     async function fetchJson(url) {
@@ -39,33 +49,46 @@
       const txt = await res.text();
       return JSON.parse(txt);
     }
-
     async function getDirectLink(renderID) {
       const dyn = `https://apis.issou.best/dynlink/ordr/gen?id=${renderID}`;
       try {
-        const res = await fetch(PROXY + encodeURIComponent(dyn));
-        if (!res.ok) return null;
-        const obj = JSON.parse(await res.text());
+        const r = await fetch(PROXY + encodeURIComponent(dyn));
+        if (!r.ok) return null;
+        const obj = JSON.parse(await r.text());
         return obj.url || null;
       } catch {
         return null;
       }
     }
+    function toleranceFor(rank) {
+      const len = String(rank).length;
+      switch (len) {
+        case 1: return   0;
+        case 2: return  10;
+        case 3: return 100;
+        case 4: return 1000;
+        case 5: return 10000;
+        case 6: return 100000;
+        default: return 500000;
+      }
+    }
 
-    // ── MAIN ────────────────────────────────────────────────────────────
+    // ── MAIN FUNCTION ───────────────────────────────────────────────────
     async function loadRandom() {
-      const infoEl = document.getElementById('info');
-      const rankEl = document.getElementById('user-rank');
-      const vidEl  = document.getElementById('replay');
-      const linkEl = document.getElementById('link');
-      infoEl.textContent = 'Loading… 🔄';
-      rankEl.textContent = '';
-      vidEl.src = '';
-      linkEl.innerHTML = '';
+      // reset UI
+      currentActualRank = null;
+      document.getElementById('info').textContent = 'Loading… 🔄';
+      document.getElementById('replay').src = '';
+      document.getElementById('link').innerHTML = '';
+      document.getElementById('guess-container').style.display = 'none';
+      document.getElementById('reload').style.display = 'none';
+      document.getElementById('guess-result').textContent = '';
+      document.getElementById('guess-input').value = '';
 
       try {
         let chosenMeta = null, chosenUrl = null;
 
+        // up to MAX_TRIES, look in a random page 1–MAX_PAGES
         for (let i = 0; i < MAX_TRIES; i++) {
           const page = Math.floor(Math.random() * MAX_PAGES) + 1;
           const data = await fetchJson(
@@ -90,37 +113,61 @@
           throw new Error('No playable replay found in first pages.');
         }
 
-        // — show replay info —
-        infoEl.textContent = `${chosenMeta.username} – ${chosenMeta.title}`;
-
-        // — fetch osu! user rank —
-        rankEl.textContent = 'Loading rank… ⏳';
-        const osuUrl = `https://osu.ppy.sh/api/get_user`
-                     + `?k=${OSU_API_KEY}`
-                     + `&u=${encodeURIComponent(chosenMeta.username)}`;
-        const osuData = await fetchJson(osuUrl);
-        if (osuData.length) {
-          const u = osuData[0];
-          rankEl.textContent =
-            `Global Rank: #${u.pp_rank} | Country Rank: #${u.pp_country_rank}`;
-        } else {
-          rankEl.textContent = 'Rank info not found';
-        }
-
-        // — embed video & link —
-        linkEl.innerHTML =
+        // show the replay info & video
+        document.getElementById('info').textContent =
+          `${chosenMeta.username} – ${chosenMeta.title}`;
+        document.getElementById('link').innerHTML =
           `<a href="${chosenUrl}" target="_blank">🔗 Open direct video link</a>`;
-        vidEl.src = chosenUrl;
+        document.getElementById('replay').src = chosenUrl;
+
+        // fetch the osu! user’s global rank
+        const osuData = await fetchJson(
+          `https://osu.ppy.sh/api/get_user`
+          + `?k=${OSU_API_KEY}&u=${encodeURIComponent(chosenMeta.username)}`
+        );
+        if (!osuData.length) throw new Error('osu! user not found');
+        currentActualRank = parseInt(osuData[0].pp_rank, 10);
+
+        // now show the guess UI
+        document.getElementById('guess-container').style.display = 'block';
 
       } catch (err) {
         console.error(err);
-        infoEl.textContent = 'Oops… retrying in 3s 😕';
-        rankEl.textContent = '';
+        document.getElementById('info').textContent =
+          'Oops, something went wrong… retrying in 3 s';
         setTimeout(loadRandom, 3000);
       }
     }
 
+    // ── GUESS HANDLER ───────────────────────────────────────────────────
+    document.getElementById('guess-btn').onclick = () => {
+      const input = document.getElementById('guess-input').value.trim();
+      const guess = parseInt(input.replace(/,/g,''), 10);
+      const resultEl = document.getElementById('guess-result');
+
+      if (isNaN(guess)) {
+        resultEl.textContent = 'Please enter a number!';
+        return;
+      }
+      const tol  = toleranceFor(currentActualRank);
+      const diff = Math.abs(guess - currentActualRank);
+
+      if (diff <= tol) {
+        resultEl.textContent = `✅ Correct! Actual rank was ${currentActualRank}`;
+        document.getElementById('reload').style.display = 'inline-block';
+      } else {
+        const low  = Math.max(1, currentActualRank - tol);
+        const high = currentActualRank + tol;
+        resultEl.textContent =
+          `❌ Nope. Your guess must be between ${low.toLocaleString()}`
+          + ` and ${high.toLocaleString()}.`;
+      }
+    };
+
+    // ── NEXT REPLAY BUTTON ──────────────────────────────────────────────
     document.getElementById('reload').onclick = loadRandom;
+
+    // ── INITIAL LOAD ───────────────────────────────────────────────────
     loadRandom();
   </script>
 </body>
