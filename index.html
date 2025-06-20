@@ -6,7 +6,7 @@
   <title>Random o!rdr Replay</title>
   <style>
     body { font-family: sans-serif; text-align: center; padding: 2rem; }
-    video { max-width: 100%; height: auto; border: 1px solid #ccc; margin-top: 1rem;}
+    video { max-width: 100%; height: auto; border: 1px solid #ccc; margin-top: 1rem; }
     #reload { margin-top: 1rem; padding: 0.5rem 1rem; }
     #link a { color: #06c; text-decoration: none; }
     #link a:hover { text-decoration: underline; }
@@ -21,7 +21,8 @@
 
   <script>
     const PROXY = 'https://api.allorigins.win/raw?url=';
-    // Fetch JSON through CORS proxy
+
+    // Helper to fetch JSON via CORS proxy
     async function fetchJson(url) {
       const res = await fetch(PROXY + encodeURIComponent(url));
       if (!res.ok) throw new Error('Proxy error ' + res.status);
@@ -29,17 +30,27 @@
       return JSON.parse(txt);
     }
 
-    // Test if a video link still exists
-    async function videoExists(url) {
+    // Ask dynlink for the direct MP4 URL (returns null if missing)
+    async function getDirectLink(renderID) {
+      const dynUrl = `https://apis.issou.best/dynlink/ordr/gen?id=${renderID}`;
       try {
-        const res = await fetch(PROXY + encodeURIComponent(url));
-        if (!res.ok) return false;
-        const html = await res.text();
-        // Look for the “no longer available” message
-        return !html.includes('This video is no longer available.');
-      } catch {
-        return false;
+        const res = await fetch(PROXY + encodeURIComponent(dynUrl));
+        if (!res.ok) return null;
+        const data = JSON.parse(await res.text());
+        return data.url || null;
+      } catch (e) {
+        console.warn('dynlink failed for', renderID, e);
+        return null;
       }
+    }
+
+    // Simple in-place Fisher–Yates shuffle
+    function shuffle(array) {
+      for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+      return array;
     }
 
     async function loadRandom() {
@@ -51,7 +62,7 @@
       linkEl.innerHTML = '';
 
       try {
-        // 1️⃣ How many renders total?
+        // 1️⃣ Get how many renders exist
         const meta = await fetchJson(
           'https://apis.issou.best/ordr/renders?pageSize=1'
         );
@@ -59,61 +70,70 @@
         const pageSize   = 50;
         const totalPages = Math.ceil(maxRenders / pageSize);
 
-        let chosen = null;
-        // 2️⃣ Try up to 5 random pages
-        for (let p = 0; p < 5 && !chosen; p++) {
-          const page = Math.floor(Math.random() * totalPages) + 1;
-          const data = await fetchJson(
-            `https://apis.issou.best/ordr/renders`
-            + `?pageSize=${pageSize}&page=${page}&nobots`
-          );
+        // We'll first try only the last 5 pages:
+        const recentStart = Math.max(1, totalPages - 4);
 
-          // 3️⃣ Filter only Done & errorCode=0
-          const good = data.renders.filter(r =>
-            r.errorCode === 0 &&
-            r.progress  === 'Done.' &&
-            r.videoUrl
-          );
+        let chosenMeta = null;
+        let chosenUrl  = null;
 
-          // Shuffle & test a few candidates
-          for (const r of shuffle(good).slice(0, 10)) {
-            if (await videoExists(r.videoUrl)) {
-              chosen = r;
-              break;
+        // Helper to search a page range
+        async function tryRange(startPage, endPage, pageTries, candTries) {
+          for (let i = 0; i < pageTries && !chosenMeta; i++) {
+            const p = Math.floor(Math.random() * (endPage - startPage + 1)) + startPage;
+            const data = await fetchJson(
+              `https://apis.issou.best/ordr/renders`
+              + `?pageSize=${pageSize}&page=${p}&nobots`
+            );
+
+            // keep only fully-done renders
+            const good = data.renders.filter(r =>
+              r.errorCode === 0 && r.progress === 'Done.'
+            );
+            shuffle(good);
+
+            // test up to candTries of them
+            for (let j = 0; j < Math.min(candTries, good.length); j++) {
+              const r = good[j];
+              const url = await getDirectLink(r.renderID);
+              if (url) {
+                chosenMeta = r;
+                chosenUrl  = url;
+                return;
+              }
             }
           }
         }
 
-        if (!chosen) throw new Error('No valid video found');
+        // Phase 1: recent pages (5 tries, 5 candidates each)
+        await tryRange(recentStart, totalPages, 5, 5);
 
-        // 🎉 Display!
-        infoEl.textContent = `${chosen.username} – ${chosen.title}`;
-        console.log('Playing:', chosen.videoUrl);
+        // Phase 2: fallback to ALL pages if still nothing (3 tries, 3 candidates)
+        if (!chosenMeta) {
+          await tryRange(1, totalPages, 3, 3);
+        }
+
+        if (!chosenMeta) {
+          throw new Error('Couldn’t find any playable replay.');
+        }
+
+        // 🎉 Found one—display it
+        infoEl.textContent = `${chosenMeta.username} – ${chosenMeta.title}`;
+        console.log('Loading video from:', chosenUrl);
         linkEl.innerHTML =
-          `<a href="${chosen.videoUrl}" target="_blank">
-             🔗 Open raw video link
+          `<a href="${chosenUrl}" target="_blank">
+             🔗 Open direct video link
            </a>`;
-        vidEl.src = chosen.videoUrl;
+        vidEl.src = chosenUrl;
 
       } catch (err) {
         console.error(err);
-        infoEl.textContent = 'Oops, retrying in 3s… 😕';
+        infoEl.textContent = 'Error loading. Retrying… 🤔';
         setTimeout(loadRandom, 3000);
       }
     }
 
-    // Simple Fisher–Yates shuffle
-    function shuffle(array) {
-      const a = array.slice();
-      for (let i = a.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [a[i], a[j]] = [a[j], a[i]];
-      }
-      return a;
-    }
-
     document.getElementById('reload').onclick = loadRandom;
-    loadRandom();  // first run
+    loadRandom();  // initial load
   </script>
 </body>
 </html>
