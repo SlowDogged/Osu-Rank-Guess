@@ -18,66 +18,70 @@
   <button id="reload">Show Another!</button>
 
   <script>
-    // 🍪 Simple CORS proxy for JSON:
+    // 🍪 CORS proxy for JSON requests
     const PROXY = 'https://api.allorigins.win/raw?url=';
     async function fetchJson(url) {
       const res = await fetch(PROXY + encodeURIComponent(url));
-      if (!res.ok) throw new Error(`Proxy returned ${res.status}`);
-      const text = await res.text();
-      try {
-        return JSON.parse(text);
-      } catch (e) {
-        throw new Error(`Invalid JSON: ${e.message}`);
-      }
+      if (!res.ok) throw new Error('Proxy error ' + res.status);
+      const txt = await res.text();
+      return JSON.parse(txt);
     }
 
     async function loadRandom() {
       const infoEl = document.getElementById('info');
       const vidEl  = document.getElementById('replay');
-      infoEl.textContent = 'Loading… 😺';
+      infoEl.textContent = 'Loading… 🔄';
       vidEl.src = '';
 
       try {
-        // 1️⃣ Find out how many renders exist
-        const { maxRenders } = await fetchJson(
+        // 1️⃣ Get total renders
+        const meta = await fetchJson(
           'https://apis.issou.best/ordr/renders?pageSize=1'
         );
+        const maxRenders = meta.maxRenders;
+        const pageSize   = 50;
+        const totalPages = Math.ceil(maxRenders / pageSize);
 
-        // 2️⃣ Try up to 10 random IDs until we get a "Done" render
-        for (let i = 0; i < 10; i++) {
-          const id = Math.floor(Math.random() * maxRenders) + 1;
-          try {
-            const { renders } = await fetchJson(
-              `https://apis.issou.best/ordr/renders?renderID=${id}`
-            );
-            if (!renders.length) throw new Error('No render found');
-            const r = renders[0];
+        let chosen = null;
+        // 2️⃣ Try up to 5 random pages
+        for (let i = 0; i < 5; i++) {
+          const page = Math.floor(Math.random() * totalPages) + 1;
+          const data = await fetchJson(
+            `https://apis.issou.best/ordr/renders`
+            + `?pageSize=${pageSize}&page=${page}&nobots`
+          );
 
-            // only use fully-done, error-free renders
-            if (r.errorCode !== 0 || r.progress !== 'Done.')
-              throw new Error('Render not ready');
-
-            // 🎉 We’ve got a valid replay!
-            infoEl.textContent = `${r.username} – ${r.title}`;
-            vidEl.src = r.videoUrl;          // <-- use the short link directly
-            return;
-          } catch(e) {
-            console.warn(`Try ${i+1} failed:`, e.message);
+          // 3️⃣ Filter for completed renders
+          const good = data.renders.filter(r =>
+            r.errorCode === 0 &&
+            r.progress  === 'Done.' &&
+            r.videoUrl
+          );
+          if (good.length) {
+            chosen = good[Math.floor(Math.random() * good.length)];
+            break;
           }
         }
 
-        // if we still didn’t get one...
-        throw new Error('Couldn’t find a done replay after 10 tries.');
+        if (!chosen) {
+          throw new Error('No done renders found in 5 tries');
+        }
+
+        // 4️⃣ Display it!
+        infoEl.textContent = `${chosen.username} – ${chosen.title}`;
+        vidEl.src = chosen.videoUrl;
 
       } catch (err) {
         console.error(err);
-        infoEl.textContent = 'Oops, retrying in 3s… 😕';
+        infoEl.textContent = 'Oops, retrying… 😕';
         setTimeout(loadRandom, 3000);
       }
     }
 
-    document.getElementById('reload').onclick = loadRandom;
-    loadRandom();  // kick it off on page load
+    document.getElementById('reload')
+            .addEventListener('click', loadRandom);
+
+    loadRandom();  // first run
   </script>
 </body>
 </html>
