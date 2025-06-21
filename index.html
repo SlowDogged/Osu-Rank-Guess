@@ -132,6 +132,7 @@
     body.dark #guess-form {
       border-color: #bbb;          /* lighter dashed line on dark */
       box-shadow: 4px 4px 0 rgba(255,255,255,0.15); /* subtle light shadow */
+      background: #1e1e1e;       /* a dark grey instead of white */
     }
     body.dark video {
       border-color: #444;
@@ -142,6 +143,14 @@
       color: #eee;
       border: 1px solid #555;
     }
+    body.dark #hints {
+      background: #4a3f1b;        /* darker “note” color */
+      border-color: #666;         /* softer border */
+    }
+    #hints li {
+      color: #ddd;                /* lighten the text a bit */
+    }
+
 
     /* Dark mode toggle */
     #dark-toggle {
