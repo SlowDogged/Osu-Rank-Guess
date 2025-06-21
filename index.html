@@ -30,6 +30,8 @@
     /* Guess UI */
     #guess-section {
       margin-top: 1rem;
+      /* ensure visible by default */
+      display: block;
     }
     #guess-form input {
       font-size: 1rem;
@@ -94,7 +96,7 @@
   <video id="replay" controls></video>
   <div id="link"></div>
 
-  <div id="guess-section" style="display:none;">
+  <div id="guess-section">
     <div id="guess-form">
       <input id="guess-input" type="number" placeholder="Your guess" />
       <button id="guess-btn">Submit</button>
@@ -166,9 +168,8 @@
       document.getElementById('info').textContent = 'Loading… 🔄';
       document.getElementById('replay').src = '';
       document.getElementById('link').innerHTML = '';
-      document.getElementById('guess-section').style.display = 'none';
+      document.getElementById('guess-section').style.display = 'block';
       document.getElementById('reload').style.display = 'none';
-      document.getElementById('guess-form').style.display = 'block';
       document.getElementById('guess-input').value = '';
       document.getElementById('guess-result').textContent = '';
       document.getElementById('hints').innerHTML = '';
@@ -213,7 +214,7 @@
         );
         topPlayPP = best.length ? Math.round(parseFloat(best[0].pp)) : null;
 
-        // show guessing UI
+        // ensure guess UI is visible
         document.getElementById('guess-section').style.display = 'block';
       } catch (e) {
         console.error(e);
