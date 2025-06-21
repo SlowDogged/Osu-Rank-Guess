@@ -44,6 +44,8 @@
       height: auto;
       border: 1px solid #ccc;
       margin: 1rem 0;
+      border-radius: 12px;
+      overflow: hidden;
     }
         /* Sketchy paper cut-out look */
     video,
@@ -112,8 +114,24 @@
 
     /* Dark mode styles */
     body.dark {
+      /* dark “paper” dots */
       background: #121212;
+      background-image:
+        radial-gradient(circle, #444 1px, transparent 1px),
+        radial-gradient(circle, #444 1px, transparent 1px);
+      background-size: 40px 40px;
+      background-position: 0 0, 20px 20px;
+    
       color: #e0e0e0;
+    }
+    
+
+    body.dark video,
+    body.dark #guess-section,
+    body.dark #reload,
+    body.dark #guess-form {
+      border-color: #bbb;          /* lighter dashed line on dark */
+      box-shadow: 4px 4px 0 rgba(255,255,255,0.15); /* subtle light shadow */
     }
     body.dark video {
       border-color: #444;
