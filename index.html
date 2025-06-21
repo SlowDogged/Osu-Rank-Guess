@@ -30,8 +30,6 @@
     /* Guess UI */
     #guess-section {
       margin-top: 1rem;
-      /* ensure visible by default */
-      display: block;
     }
     #guess-form input {
       font-size: 1rem;
@@ -151,24 +149,25 @@
       }
     }
     function toleranceFor(rank) {
-      const d = String(rank).length;
-      if (d === 1) return 0;
-      if (d === 2) return 10;
-      if (d === 3) return 100;
-      if (d === 4) return 1000;
-      if (d === 5) return 10000;
-      if (d === 6) return 100000;
-      return 500000;
+      const length = String(rank).length;
+      switch (length) {
+        case 1: return 0;
+        case 2: return 10;
+        case 3: return 100;
+        case 4: return 1000;
+        case 5: return 10000;
+        case 6: return 100000;
+        default: return 500000;
+      }
     }
 
     // ── LOAD A NEW REPLAY ──────────────────────────────────────────────
     async function loadRandom() {
-      // reset UI
       guessAttempts = 0;
       document.getElementById('info').textContent = 'Loading… 🔄';
       document.getElementById('replay').src = '';
       document.getElementById('link').innerHTML = '';
-      document.getElementById('guess-section').style.display = 'block';
+      document.getElementById('guess-form').style.display = 'block';
       document.getElementById('reload').style.display = 'none';
       document.getElementById('guess-input').value = '';
       document.getElementById('guess-result').textContent = '';
@@ -182,9 +181,7 @@
             `https://apis.issou.best/ordr/renders?` +
             `pageSize=${PAGE_SIZE}&page=${page}&nobots`
           );
-          const done = data.renders.filter(r =>
-            r.errorCode === 0 && r.progress === 'Done.'
-          );
+          const done = data.renders.filter(r => r.errorCode === 0 && r.progress === 'Done.');
           if (!done.length) continue;
           const pick = done[Math.floor(Math.random() * done.length)];
           const link = await getDirectLink(pick.renderID);
@@ -192,32 +189,24 @@
         }
         if (!meta) throw new Error('No playable replay found');
 
-        // show video
-        document.getElementById('info').textContent =
-          `${meta.username} – ${meta.title}`;
-        document.getElementById('link').innerHTML =
-          `<a href="${vidUrl}" target="_blank">🔗 Raw video</a>`;
+        document.getElementById('info').textContent = `${meta.username} – ${meta.title}`;
+        document.getElementById('link').innerHTML = `<a href=\"${vidUrl}\" target=\"_blank\">🔗 Raw video</a>`;
         document.getElementById('replay').src = vidUrl;
 
-        // fetch osu! user data
         const u = await fetchJson(
-          `https://osu.ppy.sh/api/get_user?` +
-          `k=${OSU_API_KEY}&u=${encodeURIComponent(meta.username)}`
+          `https://osu.ppy.sh/api/get_user?k=${OSU_API_KEY}&u=${encodeURIComponent(meta.username)}`
         );
-        if (!u.length) throw new Error('User not found');
-        actualRank   = parseInt(u[0].pp_rank, 10);
-        countryRank  = parseInt(u[0].pp_country_rank, 10);
-        playTimeHrs  = Math.round(parseInt(u[0].total_seconds_played, 10) / 3600);
+        actualRank = parseInt(u[0].pp_rank, 10);
+        countryRank = parseInt(u[0].pp_country_rank, 10);
+        playTimeHrs = Math.round(parseInt(u[0].total_seconds_played, 10)/3600);
         const best = await fetchJson(
-          `https://osu.ppy.sh/api/get_user_best?` +
-          `k=${OSU_API_KEY}&u=${encodeURIComponent(meta.username)}&limit=1`
+          `https://osu.ppy.sh/api/get_user_best?k=${OSU_API_KEY}&u=${encodeURIComponent(meta.username)}&limit=1`
         );
         topPlayPP = best.length ? Math.round(parseFloat(best[0].pp)) : null;
 
-        // ensure guess UI is visible
-        document.getElementById('guess-section').style.display = 'block';
-      } catch (e) {
-        console.error(e);
+        document.getElementById('guess-form').style.display = 'block';
+      } catch (err) {
+        console.error(err);
         document.getElementById('info').textContent = 'Error, retrying…';
         setTimeout(loadRandom, 3000);
       }
@@ -225,50 +214,38 @@
 
     // ── GUESS HANDLER ─────────────────────────────────────────────────
     document.getElementById('guess-btn').onclick = () => {
-      const guess = parseInt(
-        document.getElementById('guess-input').value.replace(/,/g, ''), 10
-      );
-      const resEl   = document.getElementById('guess-result');
+      const guess = parseInt(document.getElementById('guess-input').value.replace(/,/g, ''), 10);
+      const resEl = document.getElementById('guess-result');
       const hintsEl = document.getElementById('hints');
-      if (isNaN(guess)) {
-        resEl.textContent = 'Please enter a valid number!';
-        return;
-      }
+      if (isNaN(guess)) { resEl.textContent = 'Please enter a valid number!'; return; }
 
       guessAttempts++;
       const diff = Math.abs(guess - actualRank);
-      const tol  = toleranceFor(actualRank);
+      const tol = toleranceFor(actualRank);
 
-      // Always show result text
       if (diff <= tol) {
         resEl.textContent = `✅ Correct! The actual rank was #${actualRank.toLocaleString()}`;
         document.getElementById('reload').style.display = 'inline-block';
-        document.getElementById('guess-section').style.display = 'none';
+        document.getElementById('guess-form').style.display = 'none';
         return;
       } else {
         resEl.textContent = '❌ Wrong!';
       }
 
-      // Reveal hints one by one
       const allHints = [
         `Country Rank: #${countryRank.toLocaleString()}`,
         `Total Play Time: ${playTimeHrs.toLocaleString()} hr${playTimeHrs > 1 ? 's' : ''}`,
-        topPlayPP != null
-          ? `Top Play PP: ${topPlayPP.toLocaleString()} pp`
-          : `Top play data unavailable`
+        topPlayPP != null ? `Top Play PP: ${topPlayPP.toLocaleString()} pp` : `Top play data unavailable`
       ];
       hintsEl.innerHTML = '';
       for (let i = 0; i < Math.min(guessAttempts, allHints.length); i++) {
-        const li = document.createElement('li');
-        li.textContent = allHints[i];
-        hintsEl.appendChild(li);
+        const li = document.createElement('li'); li.textContent = allHints[i]; hintsEl.appendChild(li);
       }
 
-      // Once all hints shown and still wrong → auto-fail
       if (guessAttempts > allHints.length) {
         resEl.textContent = `💥 Out of hints! The actual rank was #${actualRank.toLocaleString()}`;
         document.getElementById('reload').style.display = 'inline-block';
-        document.getElementById('guess-section').style.display = 'none';
+        document.getElementById('guess-form').style.display = 'none';
       }
     };
 
