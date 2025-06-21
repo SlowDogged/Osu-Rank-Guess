@@ -168,6 +168,7 @@
       document.getElementById('link').innerHTML = '';
       document.getElementById('guess-section').style.display = 'none';
       document.getElementById('reload').style.display = 'none';
+      document.getElementById('guess-form').style.display = 'block';
       document.getElementById('guess-input').value = '';
       document.getElementById('guess-result').textContent = '';
       document.getElementById('hints').innerHTML = '';
@@ -188,7 +189,7 @@
           const link = await getDirectLink(pick.renderID);
           if (link) { meta = pick; vidUrl = link; break; }
         }
-        if (!meta) throw 'No playable replay found';
+        if (!meta) throw new Error('No playable replay found');
 
         // show video
         document.getElementById('info').textContent =
@@ -202,7 +203,7 @@
           `https://osu.ppy.sh/api/get_user?` +
           `k=${OSU_API_KEY}&u=${encodeURIComponent(meta.username)}`
         );
-        if (!u.length) throw 'User not found';
+        if (!u.length) throw new Error('User not found');
         actualRank   = parseInt(u[0].pp_rank, 10);
         countryRank  = parseInt(u[0].pp_country_rank, 10);
         playTimeHrs  = Math.round(parseInt(u[0].total_seconds_played, 10) / 3600);
@@ -241,7 +242,7 @@
       if (diff <= tol) {
         resEl.textContent = `✅ Correct! The actual rank was #${actualRank.toLocaleString()}`;
         document.getElementById('reload').style.display = 'inline-block';
-        document.getElementById('guess-form').style.display = 'none';
+        document.getElementById('guess-section').style.display = 'none';
         return;
       } else {
         resEl.textContent = '❌ Wrong!';
@@ -266,7 +267,7 @@
       if (guessAttempts > allHints.length) {
         resEl.textContent = `💥 Out of hints! The actual rank was #${actualRank.toLocaleString()}`;
         document.getElementById('reload').style.display = 'inline-block';
-        document.getElementById('guess-form').style.display = 'none';
+        document.getElementById('guess-section').style.display = 'none';
       }
     };
 
