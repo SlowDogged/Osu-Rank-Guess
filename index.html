@@ -4,9 +4,30 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
   <title>Guess the osu! Rank</title>
+
+  <!-- …your existing meta tags… -->
+  <link
+    href="https://fonts.googleapis.com/css2?family=Patrick+Hand&display=swap"
+    rel="stylesheet"
+  />
   <style>
+    body, h1, input, button {
+      font-family: 'Patrick Hand', cursive;
+    }
+
     /* Base styles */
     body {
+
+
+      /* replace or augment your background */
+      background: #fdfcf5;
+      background-image:
+        radial-gradient(circle, #ccc 1px, transparent 1px),
+        radial-gradient(circle, #ccc 1px, transparent 1px);
+      background-size: 40px 40px;
+      background-position: 0 0, 20px 20px;
+    
+      /* keep your existing transitions, colors, etc */
       font-family: sans-serif;
       text-align: center;
       padding: 2rem;
@@ -26,6 +47,18 @@
       border: 1px solid #ccc;
       margin: 1rem 0;
     }
+        /* Sketchy paper cut-out look */
+    video,
+    #guess-section,
+    #reload,
+    #guess-form {
+      border: 2px dashed #888;
+      border-radius: 8px;
+      box-shadow: 4px 4px 0 rgba(0,0,0,0.15);
+      background: #fff;
+      padding: 0.5rem;
+    }
+
 
     /* Guess UI */
     #guess-section {
@@ -40,18 +73,37 @@
       font-size: 1rem;
       margin-left: 0.5rem;
     }
+    /* Hand-cut label style */
+    button {
+      border: 2px dotted #444;
+      background: #f8f8f0;
+      padding: 0.5rem 1rem;
+      cursor: pointer;
+      transition: transform 0.1s;
+    }
+    button:active {
+      transform: translate(2px, 2px);
+    }
+
+    
     #guess-result {
       margin-top: 0.5rem;
       font-weight: bold;
     }
+    /* Sticky-note hint box */
     #hints {
-      margin-top: 1rem;
+      list-style: none;
+      padding: 0.5rem;
+      border: 2px solid #aaa;
+      background: #ffffd0;
+      max-width: 300px;
+      margin: 1rem auto;
       text-align: left;
-      display: inline-block;
-      list-style: disc inside;
-      padding-left: 0;
     }
-    #hints li { margin-bottom: 0.25rem; }
+    #hints li {
+      margin-bottom: 0.5rem;
+    }
+
 
     /* Next replay button */
     #reload {
